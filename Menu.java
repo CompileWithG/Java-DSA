@@ -7,7 +7,9 @@ class Menu {
                 "Enter 1. to get personal details/2.to get educational details/3.Tech Skills/4.Other Skills/5.Exit");
         Scanner obj = new Scanner(System.in);
         n = obj.nextInt();
-        switch (n) {
+        Boolean a=true;
+        while (a){
+            switch (n) {
             case 1:
                 System.out.println("RollNo:23BRS1156");
                 System.out.println("name:Karthik Anish");
@@ -25,11 +27,16 @@ class Menu {
                 System.out.println("other Skills:Table Tennis,Football,Weight lifting");
                 break;
             case 5:
+                a=false;
                 break;
             default:
                 System.out.println("invalid input");
 
         }
-        obj.close();
+        int n1;
+        n1=obj.nextInt();
+        n=n1;
+        }
+        
     }
 }
