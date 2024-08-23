@@ -42,8 +42,8 @@ jobs:
         run: |
           ISSUE_NUMBER=${{ github.event.issue.number }}
           REPO=${{ github.repository }}
-
           for PARENT in ${{ env.parent_issue_numbers }}; do
+            # Fetch the top 5 busiest child issues
             CHILD_ISSUES=$(gh issue list --repo $REPO --search "Parents: #$PARENT" --json number,comments,title,html_url --jq 'sort_by(.comments) | reverse | .[:5]')
             TOP_ISSUES=$(echo "$CHILD_ISSUES" | jq -r '.[] | "- [#" + (.number|tostring) + "](" + .html_url + ") - " + .title + " (" + (.comments|tostring) + " comments)"')
 
@@ -82,4 +82,3 @@ jobs:
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
