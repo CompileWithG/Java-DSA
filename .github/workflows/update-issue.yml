@@ -34,7 +34,7 @@ jobs:
           ISSUE_NUMBER=${{ github.event.issue.number }}
           DESCRIPTION=$(gh issue view $ISSUE_NUMBER --json body -q .body)
           PARENTS=$(echo "$DESCRIPTION" | grep -oP 'Parents:\s*#[0-9, ]+' | sed 's/Parents:\s*//')
-          PARENT_ISSUE_NUMBERS=$(echo $PARENTS | tr ',' '\n' | tr -d ' ')
+          PARENT_ISSUE_NUMBERS=$(echo "$PARENTS" | tr ',' '\n' | tr -d ' ')
           echo "parent_issue_numbers=$PARENT_ISSUE_NUMBERS" >> $GITHUB_ENV
 
       - name: Get Top 5 Busiest Child Issues and Update Parents
@@ -42,9 +42,15 @@ jobs:
         run: |
           ISSUE_NUMBER=${{ github.event.issue.number }}
           REPO=${{ github.repository }}
+
+          # Loop through each parent and update its description
           for PARENT in ${{ env.parent_issue_numbers }}; do
+            echo "Processing parent issue #$PARENT"
+
             # Fetch the top 5 busiest child issues
             CHILD_ISSUES=$(gh issue list --repo $REPO --search "Parents: #$PARENT" --json number,comments,title,html_url --jq 'sort_by(.comments) | reverse | .[:5]')
+            echo "Child issues: $CHILD_ISSUES"
+
             TOP_ISSUES=$(echo "$CHILD_ISSUES" | jq -r '.[] | "- [#" + (.number|tostring) + "](" + .html_url + ") - " + .title + " (" + (.comments|tostring) + " comments)"')
 
             # Fetch the current description of the parent issue
@@ -62,6 +68,7 @@ jobs:
               UPDATED_DESCRIPTION="$DESCRIPTION\n\n$NEW_BLOCK"
             fi
 
+            # Update the parent issue with the new description
             gh issue edit $PARENT --body "$UPDATED_DESCRIPTION"
           done
         env:
@@ -71,7 +78,11 @@ jobs:
         if: env.parent_issue_numbers != ''
         run: |
           ISSUE_NUMBER=${{ github.event.issue.number }}
+
+          # Loop through each parent and add a comment
           for PARENT in ${{ env.parent_issue_numbers }}; do
+            echo "Adding comment to parent issue #$PARENT"
+
             PARENT_DESCRIPTION=$(gh issue view $PARENT --json body --jq '.body')
             NEW_ENTRY="Child: #$ISSUE_NUMBER - $(gh issue view $ISSUE_NUMBER --json body -q .body)"
 
@@ -82,3 +93,4 @@ jobs:
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
