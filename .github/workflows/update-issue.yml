@@ -4,40 +4,82 @@ on:
   issue_comment:
     types: [created]
 
+permissions:
+  issues: write
+  pull-requests: read
+  contents: read
+
 jobs:
   update-parent-issues:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install GitHub CLI
+        run: sudo apt-get install gh -y
+
+      - name: Authenticate with GitHub CLI
+        run: gh auth login --with-token <<< ${{ secrets.GITHUB_TOKEN }}
 
       - name: Find Parent Issue References
         id: find_parents
         run: |
-          PARENTS=$(gh issue view ${{ github.event.issue.number }} --json body --jq '.body | scan("Parents: #([0-9, ]+)") | .[0]')
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          DESCRIPTION=$(gh issue view $ISSUE_NUMBER --json body -q .body)
+          PARENTS=$(echo "$DESCRIPTION" | grep -oP 'Parents:\s*#[0-9, ]+' | sed 's/Parents:\s*//')
           PARENT_ISSUE_NUMBERS=$(echo $PARENTS | tr ',' '\n' | tr -d ' ')
           echo "parent_issue_numbers=$PARENT_ISSUE_NUMBERS" >> $GITHUB_ENV
 
       - name: Get Top 5 Busiest Child Issues and Update Parents
         if: env.parent_issue_numbers != ''
         run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          REPO=${{ github.repository }}
+
           for PARENT in ${{ env.parent_issue_numbers }}; do
-            CHILD_ISSUES=$(gh issue list --json number,comments,title,html_url --search "Parents: #$PARENT" --jq 'sort_by(.comments) | reverse | .[:5]')
+            CHILD_ISSUES=$(gh issue list --repo $REPO --search "Parents: #$PARENT" --json number,comments,title,html_url --jq 'sort_by(.comments) | reverse | .[:5]')
             TOP_ISSUES=$(echo "$CHILD_ISSUES" | jq -r '.[] | "- [#" + (.number|tostring) + "](" + .html_url + ") - " + .title + " (" + (.comments|tostring) + " comments)"')
 
             # Fetch the current description of the parent issue
             DESCRIPTION=$(gh issue view $PARENT --json body --jq '.body')
 
-            # Check if the delimiters exist
-            if echo "$DESCRIPTION" | grep -q "<!-- TOP_5_CHILD_ISSUES_START -->"; then
-              # Replace the existing block between delimiters
-              UPDATED_DESCRIPTION=$(echo "$DESCRIPTION" | sed -e "/<!-- TOP_5_CHILD_ISSUES_START -->/,/<!-- TOP_5_CHILD_ISSUES_END -->/c\\## Top 5 Busiest Child Issues\n<!-- TOP_5_CHILD_ISSUES_START -->\n$TOP_ISSUES\n<!-- TOP_5_CHILD_ISSUES_END -->")
-            else
-              # Append the new block if the delimiters do not exist
-              UPDATED_DESCRIPTION="$DESCRIPTION\n\n## Top 5 Busiest Child Issues\n<!-- TOP_5_CHILD_ISSUES_START -->\n$TOP_ISSUES\n<!-- TOP_5_CHILD_ISSUES_END -->"
-            fi
+            # Prepare the new block content
+            NEW_BLOCK="## Top 5 Busiest Child Issues\n<!-- TOP_5_CHILD_ISSUES_START -->\n$TOP_ISSUES\n<!-- TOP_5_CHILD_ISSUES_END -->"
 
             # Update the parent issue description
+            if echo "$DESCRIPTION" | grep -q "<!-- TOP_5_CHILD_ISSUES_START -->"; then
+              # Replace the existing block between delimiters
+              UPDATED_DESCRIPTION=$(echo "$DESCRIPTION" | sed -e "/<!-- TOP_5_CHILD_ISSUES_START -->/,/<!-- TOP_5_CHILD_ISSUES_END -->/c\\$NEW_BLOCK")
+            else
+              # Append the new block if the delimiters do not exist
+              UPDATED_DESCRIPTION="$DESCRIPTION\n\n$NEW_BLOCK"
+            fi
+
             gh issue edit $PARENT --body "$UPDATED_DESCRIPTION"
           done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add Comment to Parent Issues
+        if: env.parent_issue_numbers != ''
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          for PARENT in ${{ env.parent_issue_numbers }}; do
+            PARENT_DESCRIPTION=$(gh issue view $PARENT --json body --jq '.body')
+            NEW_ENTRY="Child: #$ISSUE_NUMBER - $(gh issue view $ISSUE_NUMBER --json body -q .body)"
+
+            # Append the new entry if it's not already there
+            if ! echo "$PARENT_DESCRIPTION" | grep -q "$NEW_ENTRY"; then
+              gh issue comment $PARENT --body "$NEW_ENTRY"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
