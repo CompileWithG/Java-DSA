@@ -26,7 +26,7 @@ jobs:
         run: sudo apt-get install gh -y
 
       - name: Authenticate with GitHub CLI
-        run: gh auth login --with-token <<< ${{ secrets.GITHUB_TOKEN }}
+        run: echo ${{ secrets.GITHUB_TOKEN }} | gh auth login --with-token
 
       - name: Find Parent Issue References
         id: find_parents
@@ -43,7 +43,6 @@ jobs:
           ISSUE_NUMBER=${{ github.event.issue.number }}
           REPO=${{ github.repository }}
 
-          # Loop through each parent and update its description
           for PARENT in ${{ env.parent_issue_numbers }}; do
             echo "Processing parent issue #$PARENT"
 
@@ -79,7 +78,6 @@ jobs:
         run: |
           ISSUE_NUMBER=${{ github.event.issue.number }}
 
-          # Loop through each parent and add a comment
           for PARENT in ${{ env.parent_issue_numbers }}; do
             echo "Adding comment to parent issue #$PARENT"
 
