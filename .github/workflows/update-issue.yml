@@ -48,12 +48,12 @@ jobs:
 
             # Fetch the top 5 busiest child issues
             CHILD_ISSUES=$(gh issue list --repo $REPO --search "Parents: #$PARENT" --json number,comments,title,html_url --jq 'sort_by(.comments) | reverse | .[:5]')
-            echo "Child issues: $CHILD_ISSUES"
+            echo "Child issues: $CHILD_ISSUES"  # Debug output
 
             TOP_ISSUES=$(echo "$CHILD_ISSUES" | jq -r '.[] | "- [#" + (.number|tostring) + "](" + .html_url + ") - " + .title + " (" + (.comments|tostring) + " comments)"')
 
             # Fetch the current description of the parent issue
-            DESCRIPTION=$(gh issue view $PARENT --json body --jq '.body')
+            DESCRIPTION=$(gh issue view $PARENT --json body -q .body)
 
             # Prepare the new block content
             NEW_BLOCK="## Top 5 Busiest Child Issues\n<!-- TOP_5_CHILD_ISSUES_START -->\n$TOP_ISSUES\n<!-- TOP_5_CHILD_ISSUES_END -->"
@@ -81,7 +81,7 @@ jobs:
           for PARENT in ${{ env.parent_issue_numbers }}; do
             echo "Adding comment to parent issue #$PARENT"
 
-            PARENT_DESCRIPTION=$(gh issue view $PARENT --json body --jq '.body')
+            PARENT_DESCRIPTION=$(gh issue view $PARENT --json body -q .body)
             NEW_ENTRY="Child: #$ISSUE_NUMBER - $(gh issue view $ISSUE_NUMBER --json body -q .body)"
 
             # Append the new entry if it's not already there
