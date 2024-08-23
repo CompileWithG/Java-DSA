@@ -33,7 +33,9 @@ jobs:
         run: |
           ISSUE_NUMBER=${{ github.event.issue.number }}
           DESCRIPTION=$(gh issue view $ISSUE_NUMBER --json body -q .body)
+          echo "Issue description: $DESCRIPTION"  # Debug output
           PARENTS=$(echo "$DESCRIPTION" | grep -oP 'Parents:\s*#[0-9, ]+' | sed 's/Parents:\s*//')
+          echo "Parents line: $PARENTS"  # Debug output
           PARENT_ISSUE_NUMBERS=$(echo "$PARENTS" | tr ',' '\n' | tr -d ' ')
           echo "parent_issue_numbers=$PARENT_ISSUE_NUMBERS" >> $GITHUB_ENV
 
@@ -48,9 +50,10 @@ jobs:
 
             # Fetch the top 5 busiest child issues
             CHILD_ISSUES=$(gh issue list --repo $REPO --search "Parents: #$PARENT" --json number,comments,title,html_url --jq 'sort_by(.comments) | reverse | .[:5]')
-            echo "Child issues: $CHILD_ISSUES"  # Debug output
+            echo "Child issues JSON: $CHILD_ISSUES"  # Debug output
 
             TOP_ISSUES=$(echo "$CHILD_ISSUES" | jq -r '.[] | "- [#" + (.number|tostring) + "](" + .html_url + ") - " + .title + " (" + (.comments|tostring) + " comments)"')
+            echo "Top issues: $TOP_ISSUES"  # Debug output
 
             # Fetch the current description of the parent issue
             DESCRIPTION=$(gh issue view $PARENT --json body -q .body)
@@ -66,6 +69,8 @@ jobs:
               # Append the new block if the delimiters do not exist
               UPDATED_DESCRIPTION="$DESCRIPTION\n\n$NEW_BLOCK"
             fi
+
+            echo "Updated description: $UPDATED_DESCRIPTION"  # Debug output
 
             # Update the parent issue with the new description
             gh issue edit $PARENT --body "$UPDATED_DESCRIPTION"
